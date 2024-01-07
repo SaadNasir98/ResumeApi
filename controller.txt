@@ -1,0 +1,98 @@
+ [HttpGet("download/{resumeId}")]
+
+ public IActionResult DownloadResume(int resumeId, IFormFile imageFile)
+ {
+     var resumeData = servive.getUserResume_Page(resumeId);
+     string templatePath = System.IO.Path.Combine(Directory.GetCurrentDirectory(), @"data/CV Template.pptx");
+
+     using (MemoryStream ms = new MemoryStream())
+     {
+         using (var templateStream = new FileStream(templatePath, FileMode.Open, FileAccess.Read))
+         {
+             templateStream.CopyTo(ms);
+         }
+
+         using (var presentationDocument = PresentationDocument.Open(ms, true))
+         {
+             var presentationPart = presentationDocument.PresentationPart;
+             var placeholders = new List<string> { "UserResumeID", "UserIntroduction", "Education", "WorkExperience" };
+
+             foreach (var slidePart in presentationPart.SlideParts)
+             {
+                 var textElements = slidePart.RootElement.Descendants<DocumentFormat.OpenXml.Drawing.Text>()
+                .Where(t => placeholders.Any(p =>
+                {
+                    var contains = t.Text.Contains(p);
+                    return contains;
+                })).ToList();
+
+                 foreach (var textElement in textElements)
+                 {
+                     foreach (var placeholder in placeholders)
+                     {
+                         if (textElement.Text.Contains(placeholder))
+                         {
+                             var propertyName = placeholder.Trim('{', '}').Trim();
+
+                             if (resumeData != null && resumeData.GetType().GetProperty(propertyName) != null)
+                             {
+                                 var propertyValue = resumeData.GetType().GetProperty(propertyName)?.GetValue(resumeData)?.ToString();
+
+                                 if (propertyValue != null)
+                                 {
+                                     textElement.Text = textElement.Text.Replace(placeholder, propertyValue);
+                                     if (placeholder == "WorkExperience")
+                                     {
+
+                                         var bulletPoints = GetBulletPoints(resumeData.WorkExperience);
+                                         textElement.Text = bulletPoints;
+                                     }
+                                     if (placeholder == "Education")
+                                     {
+
+                                         var bulletPoints = GetBulletPoints(resumeData.Education);
+                                         textElement.Text = bulletPoints;
+                                     }
+
+
+                                 }
+                             }
+                         }
+                     }
+                 }
+
+             }
+             var outputStream = new MemoryStream();
+             ms.Seek(0, SeekOrigin.Begin);
+             ms.CopyTo(outputStream);
+             outputStream.Seek(0, SeekOrigin.Begin);
+             return File(outputStream, "application/vnd.openxmlformats-officedocument.presentationml.presentation", $"{resumeData.UserResumeID}_Resume.pptx");
+
+
+         }
+
+
+     }
+ }
+ private string GetBulletPoints(string inputText)
+ {
+     var lines = inputText.Split('\n');
+     var bulletedText = lines.Select(line => "• " + line.Trim()).ToList();
+     return string.Join(Environment.NewLine, bulletedText);
+ }
+
+
+ [AllowAnonymous]
+ [HttpPost("UploadImage")]
+ public IActionResult Upload(IFormFile formFile, int resumeid)
+ {
+     try
+     {
+         var docuement = servive.UPLOADDOCUMENT(formFile, resumeid);
+         return Ok(docuement);
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(ex.Message);
+     }
+ }

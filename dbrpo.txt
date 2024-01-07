@@ -1,0 +1,66 @@
+//dbrepo class
+
+public User_Resume_Page UPLOADDOCUMENT(IFormFile file, int resumeid)
+{
+    try
+    {
+        string imagepath = @"Images/dummy-profile-pic-male1.jpg";
+        User_Resume_Page documentapi = new User_Resume_Page();
+        if (file != null && file.Length > 0)
+        {
+            //var time = (DateTime.Now.ToUniversalTime() - new DateTime(1970, 1, 1));
+            //var a = "Ag" + (ulong)(time.TotalMilliseconds + 0.5) + file.FileName;
+            //string[] arr = { ".jpg", ".bmp", ".gif", ".png", ".jpeg" };
+            //foreach (var item in arr)
+            //{
+            //    int extension = a.IndexOf(item);
+            //    if (extension >= 0)
+            //    {
+            //        a = a.Remove(extension);
+            //    }
+            //}
+            //var fileName = a + ".jpg";
+            //documentapi.UserResumeID = resumeid;
+            string imageLocation = System.IO.Path.Combine(imagepath);
+            documentapi.Image = imageLocation;
+            // Save the uploaded image
+            using (var stream = new FileStream(imageLocation, FileMode.Create))
+            {
+                file.CopyTo(stream);
+            }
+            string pptFilePath = @"data/CV Template.pptx";
+
+            // Open the PowerPoint file using OpenXml
+            using (PresentationDocument presentationDocument = PresentationDocument.Open(pptFilePath, true))
+            {
+                // Get the first slide
+                SlidePart slidePart = presentationDocument.PresentationPart.SlideParts.First();
+
+                // Add the image to the slide
+                ImagePart imagePart = slidePart.AddImagePart(ImagePartType.Jpeg, "rId1");
+                using (FileStream imgStream = new FileStream(imageLocation, FileMode.Open))
+                {
+                    imagePart.FeedData(imgStream);
+                }
+
+                // Insert the image onto the slide
+                DocumentFormat.OpenXml.Drawing.Picture picture = new DocumentFormat.OpenXml.Drawing.Picture(new DocumentFormat.OpenXml.Drawing.NonVisualPictureProperties(
+                    new DocumentFormat.OpenXml.Drawing.NonVisualDrawingProperties { Id = 2, Name = documentapi.Image },
+                    new DocumentFormat.OpenXml.Drawing.NonVisualPictureDrawingProperties()),
+                    new DocumentFormat.OpenXml.Drawing.BlipFill(new Blip { Embed = "rId1" }, new Stretch(new FillRectangle())),
+                    new DocumentFormat.OpenXml.Drawing.ShapeProperties(new PresetGeometry { Preset = ShapeTypeValues.Rectangle }));
+                slidePart.Slide.CommonSlideData.ShapeTree.AppendChild(picture);
+            }
+
+            return documentapi;
+        }
+        else
+        {
+            return documentapi;
+        }
+    }
+    catch (Exception ex)
+    {
+        throw ex;
+    }
+}
